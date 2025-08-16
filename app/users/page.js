@@ -82,9 +82,12 @@ export default function UsersPage() {
   // جلب المستخدمين
   async function fetchUsers() {
     try {
-      const res = await fetch("http://localhost:5000/api/users", {
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/users",
+        {
+          headers: getAuthHeaders(),
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل في جلب المستخدمين");
       setUsers(Array.isArray(data) ? data : []);
@@ -106,11 +109,14 @@ export default function UsersPage() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://localhost:5000/api/users", {
-        method: "POST",
-        headers: getAuthHeaders(), // ⬅️ مهم
-        body: JSON.stringify(newUser),
-      });
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/users",
+        {
+          method: "POST",
+          headers: getAuthHeaders(), // ⬅️ مهم
+          body: JSON.stringify(newUser),
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل الإضافة");
       setAlertData({
@@ -142,10 +148,13 @@ export default function UsersPage() {
     if (!confirm("هل أنت متأكد من حذف هذا المستخدم؟")) return;
 
     try {
-      const res = await fetch(`http://localhost:5000/api/users/${id}`, {
-        method: "DELETE",
-        headers: getAuthHeaders(),
-      });
+      const res = await fetch(
+        `https://iss-group-dashboard-2.onrender.com/api/users/${id}`,
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل الحذف");
 
@@ -175,7 +184,7 @@ export default function UsersPage() {
       if (selectedUser.newPassword) body.password = selectedUser.newPassword;
 
       const res = await fetch(
-        `http://localhost:5000/api/users/${selectedUser._id}`,
+        `https://iss-group-dashboard-2.onrender.com/api/users/${selectedUser._id}`,
         {
           method: "PUT",
           headers: getAuthHeaders(),

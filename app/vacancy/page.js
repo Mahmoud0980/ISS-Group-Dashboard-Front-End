@@ -79,7 +79,9 @@ export default function VacanciesPage() {
   // API
   const fetchVacancies = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/vacancies");
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/vacancies"
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "err");
       setVacancies(Array.isArray(data) ? data : []);
@@ -122,11 +124,14 @@ export default function VacanciesPage() {
       if (!newVacancy[f]) return alert(`الرجاء تعبئة الحقل: ${f}`);
     }
     try {
-      const res = await fetch("http://localhost:5000/api/vacancies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newVacancy),
-      });
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/vacancies",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newVacancy),
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل الإضافة");
       setAlertData({
@@ -162,7 +167,7 @@ export default function VacanciesPage() {
     }
     try {
       const res = await fetch(
-        `http://localhost:5000/api/vacancies/${editVacancy._id}`,
+        `https://iss-group-dashboard-2.onrender.com/api/vacancies/${editVacancy._id}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -191,9 +196,12 @@ export default function VacanciesPage() {
   const handleDelete = async (id) => {
     if (!confirm("هل أنت متأكد من حذف الشاغر؟")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/vacancies/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `https://iss-group-dashboard-2.onrender.com/api/vacancies/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل الحذف");
       setAlertData({
@@ -222,7 +230,7 @@ export default function VacanciesPage() {
     try {
       const idOrSlug = vacancy._id || vacancy.slug;
       const res = await fetch(
-        `http://localhost:5000/api/vacancies/${idOrSlug}/applicants`
+        `https://iss-group-dashboard-2.onrender.com/api/vacancies/${idOrSlug}/applicants`
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل في جلب المتقدمين");

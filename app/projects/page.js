@@ -81,7 +81,9 @@ export default function ProjectsPage() {
   // Fetch
   const fetchProjects = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/projects");
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/projects"
+      );
       const data = await res.json();
       setProjects(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -171,10 +173,13 @@ export default function ProjectsPage() {
     try {
       const form = new FormData();
       Object.entries(newProject).forEach(([k, v]) => form.append(k, v));
-      const res = await fetch("http://localhost:5000/api/projects", {
-        method: "POST",
-        body: form,
-      });
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/projects",
+        {
+          method: "POST",
+          body: form,
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل في الإضافة");
 
@@ -204,7 +209,7 @@ export default function ProjectsPage() {
       // نضيف كل القيم، ولو الصورة ملف جديد حيتم رفعه وإلا تبقى القديمة
       Object.entries(editProject).forEach(([k, v]) => form.append(k, v));
       const res = await fetch(
-        `http://localhost:5000/api/projects/${editProject._id}`,
+        `https://iss-group-dashboard-2.onrender.com/api/projects/${editProject._id}`,
         { method: "PUT", body: form }
       );
       const data = await res.json();
@@ -229,9 +234,12 @@ export default function ProjectsPage() {
   const handleDelete = async (id) => {
     if (!window.confirm("هل أنت متأكد من الحذف؟")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/projects/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `https://iss-group-dashboard-2.onrender.com/api/projects/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل في الحذف");
 

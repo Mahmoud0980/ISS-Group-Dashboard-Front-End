@@ -14,7 +14,9 @@ export default function DashboardPage() {
 
   const fetchStats = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/stats");
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/stats"
+      );
       const data = await res.json();
       setStats(data);
     } catch (err) {
