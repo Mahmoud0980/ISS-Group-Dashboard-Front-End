@@ -1,0 +1,10 @@
+/* Sidebar.css أو ملف CSS عام */
+.page-content {
+  transition: margin 0.3s ease;
+}
+
+@media (max-width: 768px) {
+  .page-content {
+    margin-right: 0 !important;
+  }
+}

@@ -1,0 +1,11 @@
+.table {
+  background-color: #f8fefe !important;
+}
+.table td,
+.table th {
+  background-color: #f8fefe;
+}
+
+table tr td {
+  background-color: f8fefe !important;
+}

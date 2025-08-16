@@ -1,0 +1,141 @@
+.sidebar {
+  width: 270px;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background-color: #f8fefe; /* كحلي داكن */
+  padding: 20px;
+  border-left: 3px solid #1e293b97; /* أزرق فاتح */
+  overflow-y: auto;
+  z-index: 1051;
+  transform: translateX(0);
+  transition: transform 0.3s ease-in-out;
+  color: #000; /* نص فاتح */
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(100%);
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1050;
+}
+
+.sidebar .nav-link {
+  color: #000;
+  font-weight: 500;
+  padding: 10px 15px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar .nav-link:hover,
+.sidebar .nav-link:focus {
+  background-color: #1e293b;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* زر القائمة المنسدلة */
+.sidebar .dropdown-toggle {
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: start;
+  cursor: pointer;
+  color: #cbd5e1;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  padding: 10px 15px;
+  border-radius: 6px;
+  transition: background-color 0.2s ease;
+}
+
+.sidebar .dropdown-toggle:hover,
+.sidebar .dropdown-toggle:focus {
+  background-color: #3b82f6;
+  color: #fff;
+}
+
+/* السهم */
+
+.sidebar .dropdown-toggle[aria-expanded="true"]::after {
+  transform: rotate(-180deg);
+  color: #60a5fa;
+}
+
+.sidebar .submenu {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.sidebar .submenu.show {
+  max-height: 500px;
+}
+
+/* الأقسام الفرعية بدون أيقونات مع تأثير hover بسيط */
+.sidebar .submenu .nav-link {
+  padding-left: 30px;
+  font-weight: 400;
+  font-size: 0.95rem;
+  color: #cbd5e1;
+  background: none;
+  cursor: pointer;
+  display: block;
+  border-radius: 6px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.sidebar .submenu .nav-link:hover,
+.sidebar .submenu .nav-link:focus {
+  background-color: rgba(59, 130, 246, 0.15); /* أزرق فاتح شفاف */
+  color: #3b82f6; /* أزرق فاتح */
+  text-decoration: none;
+}
+
+/* العنوان الرئيسي */
+.sidebar h5 {
+  color: #e0e7ff;
+  font-weight: 700;
+  font-size: 1.3rem;
+}
+
+/* زر إغلاق الموبايل */
+.btn-close {
+  background-color: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: #cbd5e1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.btn-close:hover,
+.btn-close:focus {
+  color: #3b82f6;
+}
+
+/* أيقونات Bootstrap */
+.bi {
+  font-size: 1.2rem;
+}
+
+/* المسافة بين الأيقونة والنص */
+.me-2 {
+  margin-inline-end: 0.5rem !important;
+}
