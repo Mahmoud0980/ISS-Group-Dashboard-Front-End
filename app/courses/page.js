@@ -447,7 +447,7 @@ export default function CoursesPage() {
     try {
       const idOrSlug = course._id || course.slug;
       const res = await fetch(
-        `https://iss-group-dashboard-2.onrender.com/${idOrSlug}/applicants`
+        `https://iss-group-dashboard-2.onrender.com/api/courses/${idOrSlug}/applicants`
       );
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "فشل في جلب المتقدمين");
