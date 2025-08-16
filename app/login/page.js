@@ -20,11 +20,14 @@ export default function LoginPage() {
   const handleLogin = async (e) => {
     e.preventDefault();
     localStorage.removeItem("token");
-    const res = await fetch("http://localhost:5000/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
+    const res = await fetch(
+      "https://iss-group-dashboard-2.onrender.com/auth/login",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      }
+    );
 
     const data = await res.json();
 
