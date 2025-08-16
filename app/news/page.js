@@ -90,7 +90,9 @@ export default function NewsPage() {
   // جلب الأخبار
   const fetchNews = async () => {
     try {
-      const res = await fetch("http://localhost:5000/api/news?lang=ar");
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/news?lang=ar"
+      );
       const data = await res.json();
       const normalized = (Array.isArray(data) ? data : []).map((n) => ({
         ...n,
@@ -126,7 +128,7 @@ export default function NewsPage() {
     const { name, value } = e.target;
     let updated = { ...editNews, [name]: value };
     if (name === "title_en") {
-      updated.slug = generateSlug(value); // ✅ توليد تلقائي
+      updated.slug = generateSlug(value); // توليد تلقائي
     }
     setEditNews(updated);
   };
@@ -134,11 +136,15 @@ export default function NewsPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://localhost:5000/api/news", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newNews), // يتضمن slug
-      });
+      //const res = await fetch("http://localhost:5000/api/news", {
+      const res = await fetch(
+        "https://iss-group-dashboard-2.onrender.com/api/news",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newNews), // يتضمن slug
+        }
+      );
       const data = await res.json();
 
       if (!res.ok) throw new Error(data.error || "فشل الإضافة");
@@ -164,11 +170,14 @@ export default function NewsPage() {
   const handleUpdate = async (e, id) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://localhost:5000/api/news/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editNews), // يتضمن slug
-      });
+      const res = await fetch(
+        `https://iss-group-dashboard-2.onrender.com/api/news/${id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(editNews), // يتضمن slug
+        }
+      );
       const result = await res.json();
 
       if (!res.ok) throw new Error(result.error || "فشل التعديل");
@@ -194,9 +203,12 @@ export default function NewsPage() {
   const handleDelete = async (id) => {
     if (!confirm("هل أنت متأكد من حذف الخبر؟")) return;
     try {
-      const res = await fetch(`http://localhost:5000/api/news/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `https://iss-group-dashboard-2.onrender.com/api/news/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "فشل الحذف");
 
