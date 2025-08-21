@@ -15,9 +15,8 @@ const WEEK_DAYS = [
   { en: "Friday", ar: "الجمعة" },
 ];
 
-/* =================== أدوات وقت عامة =================== */
+/* =================== أدوات الوقت العامة =================== */
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
-
 const pad = (n) => String(n).padStart(2, "0");
 const toMinutes = (t) => {
   if (!HHMM.test(t)) return null;
@@ -45,28 +44,61 @@ const makeRangeFromStart = (start) => {
   return `${start} - ${end}`;
 };
 const getStartFromRange = (range) => (range || "").split(" - ")[0] || "";
-const isValid2hRange = (range) => {
-  const [a, b] = (range || "").split(" - ");
-  if (!HHMM.test(a) || !HHMM.test(b)) return false;
-  const diff = toMinutes(b) - toMinutes(a);
-  return diff === 120;
+
+/* ======== دعم الصيغتين: "HH:MM" القديمة و "HH:MM - HH:MM" الجديدة ======== */
+const parseTo2hRange = (val) => {
+  if (!val) return { ok: false, msg: "الوقت فارغ" };
+
+  const parts = String(val).split(" - ");
+  if (parts.length === 2) {
+    const [a, b] = parts;
+    if (!HHMM.test(a) || !HHMM.test(b))
+      return { ok: false, msg: "اكتب الوقت بصيغة HH:MM" };
+    if (toMinutes(b) - toMinutes(a) !== 120)
+      return { ok: false, msg: "المدة يجب أن تكون ساعتين" };
+    return { ok: true, range: `${a} - ${b}` };
+  } else {
+    if (!HHMM.test(val))
+      return { ok: false, msg: "اكتب الوقت بصيغة HH:MM مثل 17:30" };
+    const { time: end, dayDelta } = addMinutes(val, 120);
+    if (dayDelta !== 0)
+      return { ok: false, msg: "لا يمكن أن يمتد الوقت لليوم التالي" };
+    return { ok: true, range: `${val} - ${end}` };
+  }
 };
 
-/* =================== تحقق قبل الإرسال =================== */
-const validateSchedule = (schedule) => {
+const normalizeSchedule = (schedule) =>
+  (schedule || []).map((it) => {
+    const ar = parseTo2hRange(it.time_ar || "");
+    const en = parseTo2hRange(it.time_en || it.time_ar || "");
+    return {
+      ...it,
+      time_ar: ar.ok ? ar.range : it.time_ar,
+      time_en: en.ok ? en.range : it.time_en,
+      _errors: { ar, en },
+    };
+  });
+
+const validateAndNormalizeSchedule = (schedule) => {
   if (!Array.isArray(schedule) || schedule.length === 0) {
-    return "اختر على الأقل يوم تدريب وحدد وقته.";
+    return { error: "اختر على الأقل يوم تدريب وحدد وقته.", schedule: [] };
   }
-  for (const item of schedule) {
+  const normalized = normalizeSchedule(schedule);
+  for (const item of normalized) {
     const day = `${item.day_ar || item.day_en}`;
-    if (!isValid2hRange(item.time_ar)) {
-      return `وقت اليوم ${day} غير صالح. اختر وقت البداية فقط وسنحسب النهاية (+ساعتين).`;
-    }
-    if (!isValid2hRange(item.time_en)) {
-      return `وقت (EN) لليوم ${day} غير صالح.`;
-    }
+    if (!item._errors.ar.ok)
+      return {
+        error: `وقت اليوم ${day} غير صالح: ${item._errors.ar.msg}`,
+        schedule: normalized,
+      };
+    if (!item._errors.en.ok)
+      return {
+        error: `وقت (EN) لليوم ${day} غير صالح: ${item._errors.en.msg}`,
+        schedule: normalized,
+      };
   }
-  return null;
+  const cleaned = normalized.map(({ _errors, ...rest }) => rest);
+  return { schedule: cleaned, error: null };
 };
 
 /* =================== مكوّن اختيار الجدول الزمني =================== */
@@ -77,6 +109,7 @@ function SchedulePicker({ value, onChange }) {
   const [unifiedStart, setUnifiedStart] = useState("");
   const [errors, setErrors] = useState({}); // { [day_en]: "msg" }
 
+  // طبّق الوقت الموحد على الأيام المختارة
   const applyUnifiedToAll = (start) => {
     const range = makeRangeFromStart(start);
     if (!range) return; // لو امتد لليوم التالي لا نطبّق
@@ -379,10 +412,14 @@ export default function CoursesPage() {
   /* =================== تعديل كورس =================== */
   const handleUpdate = async (e, id) => {
     e.preventDefault();
-    const msg = validateSchedule(editCourse?.trainingSchedule || []);
-    if (msg) {
+
+    // ✅ تحقق + تطبيع الجدول (يدعم HH:MM و "HH:MM - HH:MM")
+    const { schedule: norm, error } = validateAndNormalizeSchedule(
+      editCourse?.trainingSchedule || []
+    );
+    if (error) {
       setAlertData({
-        body: msg,
+        body: error,
         className: "alert alert-danger position-fixed top-0-0",
       });
       setTimeout(() => setAlertData(null), 2000);
@@ -396,7 +433,7 @@ export default function CoursesPage() {
         const form = new FormData();
         Object.entries(editCourse).forEach(([k, v]) => {
           if (k === "trainingSchedule") {
-            form.append("trainingSchedule", JSON.stringify(v || []));
+            form.append("trainingSchedule", JSON.stringify(norm));
           } else if (k !== "image") {
             form.append(k, v ?? "");
           }
@@ -411,10 +448,7 @@ export default function CoursesPage() {
           }
         );
       } else {
-        const payload = {
-          ...editCourse,
-          trainingSchedule: editCourse.trainingSchedule || [],
-        };
+        const payload = { ...editCourse, trainingSchedule: norm };
         response = await fetch(
           `https://iss-group-dashboard-2.onrender.com/api/courses/${id}`,
           {
@@ -486,10 +520,13 @@ export default function CoursesPage() {
       return;
     }
 
-    const msg = validateSchedule(newCourse.trainingSchedule);
-    if (msg) {
+    // ✅ تحقق + تطبيع الجدول (يدعم HH:MM و "HH:MM - HH:MM")
+    const { schedule: norm, error } = validateAndNormalizeSchedule(
+      newCourse.trainingSchedule
+    );
+    if (error) {
       setAlertData({
-        body: msg,
+        body: error,
         className: "alert alert-danger position-fixed top-0-0",
       });
       setTimeout(() => setAlertData(null), 2000);
@@ -500,10 +537,7 @@ export default function CoursesPage() {
       const form = new FormData();
       for (let key in newCourse) {
         if (key === "trainingSchedule") {
-          form.append(
-            "trainingSchedule",
-            JSON.stringify(newCourse.trainingSchedule)
-          );
+          form.append("trainingSchedule", JSON.stringify(norm)); // <-- الجدول بعد التطبيع
         } else {
           form.append(key, newCourse[key]);
         }
