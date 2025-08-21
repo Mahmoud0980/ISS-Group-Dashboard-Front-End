@@ -15,58 +15,113 @@ const WEEK_DAYS = [
   { en: "Friday", ar: "الجمعة" },
 ];
 
-/* =================== أدوات الوقت العامة =================== */
-const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+/* =================== أدوات الوقت المرنة =================== */
+// تحويل أرقام عربية -> لاتينية
+const arabicDigitsMap = {
+  "٠": "0",
+  "١": "1",
+  "٢": "2",
+  "٣": "3",
+  "٤": "4",
+  "٥": "5",
+  "٦": "6",
+  "٧": "7",
+  "٨": "8",
+  "٩": "9",
+};
+const normalizeDigits = (s) =>
+  s.replace(/[٠-٩]/g, (d) => arabicDigitsMap[d] || d);
+
+// تنظيف النص (إزالة محارف غريبة واتجاهات)
+const clean = (s) =>
+  normalizeDigits(String(s || ""))
+    .replace(/\u200E|\u200F|\u202A|\u202B|\u202C|\u202D|\u202E/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 const pad = (n) => String(n).padStart(2, "0");
+
+// يحوّل نص وقت (24h أو 12h AM/PM أو ص/م) إلى "HH:MM" بنظام 24 ساعة
+const to24 = (raw) => {
+  const str = clean(raw).toUpperCase();
+
+  // 1) 24 ساعة (اسمح بساعة رقم واحد أيضًا)
+  let m = str.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (m) {
+    const hh = pad(m[1]);
+    const mm = pad(m[2]);
+    return `${hh}:${mm}`;
+  }
+
+  // 2) 12 ساعة AM/PM أو عربية ص/م
+  // أمثلة: "2:30 PM", "12:05 am", "05:30 م", "7:00 ص"
+  const str2 = str
+    .replace(/ص|AM/gi, "AM")
+    .replace(/م|PM/gi, "PM")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  m = str2.match(/^([0]?\d|1[0-2]):([0-5]\d)\s?(AM|PM)$/i);
+  if (m) {
+    let h = parseInt(m[1], 10);
+    const mm = pad(m[2]);
+    const ap = m[3].toUpperCase();
+    if (ap === "AM") {
+      if (h === 12) h = 0;
+    } else {
+      if (h !== 12) h += 12;
+    }
+    return `${pad(h)}:${mm}`;
+  }
+
+  // غير معروف
+  return null;
+};
+
+// إضافة دقائق إلى "HH:MM" مع معرفة إن تعدّى اليوم
 const toMinutes = (t) => {
-  if (!HHMM.test(t)) return null;
   const [h, m] = t.split(":").map(Number);
   return h * 60 + m;
 };
-const fromMinutes = (m) => {
-  const h = Math.floor(m / 60) % 24;
-  const mm = m % 60;
-  return `${pad(h)}:${pad(mm)}`;
+const fromMinutes = (mins) => {
+  const h = Math.floor(mins / 60) % 24;
+  const m = mins % 60;
+  return `${pad(h)}:${pad(m)}`;
 };
-const addMinutes = (t, mins) => {
-  const s = toMinutes(t);
-  if (s == null) return { time: "", dayDelta: NaN };
-  const total = s + mins;
-  const dayDelta = Math.floor(total / 1440); // 0 يعني بقي بنفس اليوم
+const addMinutes = (t, minutes) => {
+  const total = toMinutes(t) + minutes;
+  const dayDelta = Math.floor(total / 1440);
   return { time: fromMinutes((total + 1440) % 1440), dayDelta };
 };
 
-// يصنع مدى وقت من بداية +2 ساعة، ويرفض لو امتد لليوم التالي
-const makeRangeFromStart = (start) => {
-  if (!HHMM.test(start)) return null;
-  const { time: end, dayDelta } = addMinutes(start, 120);
-  if (dayDelta !== 0) return null;
-  return `${start} - ${end}`;
-};
-const getStartFromRange = (range) => (range || "").split(" - ")[0] || "";
+// يفصل مدى بنّان على أي نوع شرطة
+const splitRange = (val) => clean(val).split(/\s*[-–—]\s*/);
 
-/* ======== دعم الصيغتين: "HH:MM" القديمة و "HH:MM - HH:MM" الجديدة ======== */
+// حول قيمة واحدة/مدى إلى مدى ساعتين مضبوط
 const parseTo2hRange = (val) => {
-  if (!val) return { ok: false, msg: "الوقت فارغ" };
+  const v = clean(val);
+  if (!v) return { ok: false, msg: "الوقت فارغ" };
 
-  const parts = String(val).split(" - ");
+  const parts = splitRange(v);
   if (parts.length === 2) {
-    const [a, b] = parts;
-    if (!HHMM.test(a) || !HHMM.test(b))
-      return { ok: false, msg: "اكتب الوقت بصيغة HH:MM" };
-    if (toMinutes(b) - toMinutes(a) !== 120)
-      return { ok: false, msg: "المدة يجب أن تكون ساعتين" };
-    return { ok: true, range: `${a} - ${b}` };
+    const a24 = to24(parts[0]);
+    const b24 = to24(parts[1]);
+    if (!a24 || !b24)
+      return { ok: false, msg: "اكتب الوقت بصيغة HH:MM أو HH:MM AM/PM" };
+    const diff = toMinutes(b24) - toMinutes(a24);
+    if (diff !== 120) return { ok: false, msg: "المدة يجب أن تكون ساعتين" };
+    return { ok: true, range: `${a24} - ${b24}` };
   } else {
-    if (!HHMM.test(val))
-      return { ok: false, msg: "اكتب الوقت بصيغة HH:MM مثل 17:30" };
-    const { time: end, dayDelta } = addMinutes(val, 120);
+    const a24 = to24(v);
+    if (!a24) return { ok: false, msg: "اكتب الوقت بصيغة HH:MM مثل 17:30" };
+    const { time: end, dayDelta } = addMinutes(a24, 120);
     if (dayDelta !== 0)
       return { ok: false, msg: "لا يمكن أن يمتد الوقت لليوم التالي" };
-    return { ok: true, range: `${val} - ${end}` };
+    return { ok: true, range: `${a24} - ${end}` };
   }
 };
 
+// طبّع الجدول: يقبل الصيغ القديمة ويحوّلها لمدى 24h
 const normalizeSchedule = (schedule) =>
   (schedule || []).map((it) => {
     const ar = parseTo2hRange(it.time_ar || "");
@@ -101,18 +156,31 @@ const validateAndNormalizeSchedule = (schedule) => {
   return { schedule: cleaned, error: null };
 };
 
+// استخرج وقت البداية (24h) من قيمة قديمة/جديدة لعرضه في input
+const start24FromValue = (val) => {
+  const v = clean(val);
+  if (!v) return "";
+  const parts = splitRange(v);
+  const first = parts[0] || "";
+  const t = to24(first);
+  return t || "";
+};
+
 /* =================== مكوّن اختيار الجدول الزمني =================== */
-/** يخزّن time_ar و time_en كـ "HH:MM - HH:MM" */
 function SchedulePicker({ value, onChange }) {
   const selected = new Map(value.map((v) => [v.day_en, v]));
   const [separateTimes, setSeparateTimes] = useState(false); // false = وقت موحّد
   const [unifiedStart, setUnifiedStart] = useState("");
   const [errors, setErrors] = useState({}); // { [day_en]: "msg" }
 
-  // طبّق الوقت الموحد على الأيام المختارة
+  const makeRangeFromStart = (start) => {
+    const r = parseTo2hRange(start);
+    return r.ok ? r.range : "";
+  };
+
   const applyUnifiedToAll = (start) => {
     const range = makeRangeFromStart(start);
-    if (!range) return; // لو امتد لليوم التالي لا نطبّق
+    if (!range) return;
     const next = value.map((v) => ({ ...v, time_ar: range, time_en: range }));
     onChange(next);
   };
@@ -137,15 +205,19 @@ function SchedulePicker({ value, onChange }) {
   };
 
   const changeStartForDay = (day_en, start) => {
-    const range = makeRangeFromStart(start);
+    const parsed = parseTo2hRange(start);
     setErrors((prev) => ({
       ...prev,
-      [day_en]: range ? "" : "وقت البداية يجب أن يسمح بساعتين ضمن نفس اليوم",
+      [day_en]: parsed.ok ? "" : parsed.msg || "وقت غير صالح",
     }));
     onChange(
       value.map((v) =>
         v.day_en === day_en
-          ? { ...v, time_ar: range || "", time_en: range || "" }
+          ? {
+              ...v,
+              time_ar: parsed.ok ? parsed.range : "",
+              time_en: parsed.ok ? parsed.range : "",
+            }
           : v
       )
     );
@@ -213,8 +285,8 @@ function SchedulePicker({ value, onChange }) {
               className="form-control"
               value={
                 unifiedStart
-                  ? addMinutes(unifiedStart, 120).dayDelta === 0
-                    ? addMinutes(unifiedStart, 120).time
+                  ? parseTo2hRange(unifiedStart).ok
+                    ? parseTo2hRange(unifiedStart).range.split(" - ")[1]
                     : ""
                   : ""
               }
@@ -223,9 +295,9 @@ function SchedulePicker({ value, onChange }) {
               title="يُحسب تلقائيًا بعد ساعتين"
             />
           </div>
-          {unifiedStart && addMinutes(unifiedStart, 120).dayDelta !== 0 && (
+          {unifiedStart && !parseTo2hRange(unifiedStart).ok && (
             <div className="col-12 text-danger small mt-1">
-              لا يمكن أن يمتد الوقت لليوم التالي. اختر وقت بداية أسبق.
+              {parseTo2hRange(unifiedStart).msg || "وقت غير صالح"}
             </div>
           )}
         </div>
@@ -235,11 +307,12 @@ function SchedulePicker({ value, onChange }) {
       {separateTimes && value.length > 0 && (
         <div className="row g-3">
           {value.map((item) => {
-            const start = getStartFromRange(item.time_ar);
-            const endInfo = start
-              ? addMinutes(start, 120)
-              : { time: "", dayDelta: 0 };
-            const end = endInfo.dayDelta === 0 ? endInfo.time : "";
+            const start = start24FromValue(item.time_ar);
+            const end = start
+              ? parseTo2hRange(start).ok
+                ? parseTo2hRange(start).range.split(" - ")[1]
+                : ""
+              : "";
             const error = errors[item.day_en];
             return (
               <div key={item.day_en} className="col-12">
@@ -271,11 +344,6 @@ function SchedulePicker({ value, onChange }) {
                       disabled
                       title="يُحسب تلقائيًا بعد ساعتين"
                     />
-                    {start && endInfo.dayDelta !== 0 && (
-                      <div className="text-danger small mt-1">
-                        لا يمكن أن يمتد الوقت لليوم التالي.
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -413,7 +481,6 @@ export default function CoursesPage() {
   const handleUpdate = async (e, id) => {
     e.preventDefault();
 
-    // ✅ تحقق + تطبيع الجدول (يدعم HH:MM و "HH:MM - HH:MM")
     const { schedule: norm, error } = validateAndNormalizeSchedule(
       editCourse?.trainingSchedule || []
     );
@@ -520,7 +587,6 @@ export default function CoursesPage() {
       return;
     }
 
-    // ✅ تحقق + تطبيع الجدول (يدعم HH:MM و "HH:MM - HH:MM")
     const { schedule: norm, error } = validateAndNormalizeSchedule(
       newCourse.trainingSchedule
     );
@@ -537,7 +603,7 @@ export default function CoursesPage() {
       const form = new FormData();
       for (let key in newCourse) {
         if (key === "trainingSchedule") {
-          form.append("trainingSchedule", JSON.stringify(norm)); // <-- الجدول بعد التطبيع
+          form.append("trainingSchedule", JSON.stringify(norm));
         } else {
           form.append(key, newCourse[key]);
         }
