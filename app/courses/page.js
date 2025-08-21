@@ -4,7 +4,7 @@ import ProtectedRoute from "../_components/ProtectedRoute";
 import Alerts from "../_components/Alerts";
 import "./courses.css";
 
-// أيام الأسبوع (ثابت)
+/* =================== ثوابت =================== */
 const WEEK_DAYS = [
   { en: "Saturday", ar: "السبت" },
   { en: "Sunday", ar: "الأحد" },
@@ -14,46 +14,113 @@ const WEEK_DAYS = [
   { en: "Thursday", ar: "الخميس" },
   { en: "Friday", ar: "الجمعة" },
 ];
-//////////////////////////////////////////////////////////////
-const isValidTime = (t) => /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 
+/* =================== أدوات وقت عامة =================== */
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+const pad = (n) => String(n).padStart(2, "0");
+const toMinutes = (t) => {
+  if (!HHMM.test(t)) return null;
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+};
+const fromMinutes = (m) => {
+  const h = Math.floor(m / 60) % 24;
+  const mm = m % 60;
+  return `${pad(h)}:${pad(mm)}`;
+};
+const addMinutes = (t, mins) => {
+  const s = toMinutes(t);
+  if (s == null) return { time: "", dayDelta: NaN };
+  const total = s + mins;
+  const dayDelta = Math.floor(total / 1440); // 0 يعني بقي بنفس اليوم
+  return { time: fromMinutes((total + 1440) % 1440), dayDelta };
+};
+
+// يصنع مدى وقت من بداية +2 ساعة، ويرفض لو امتد لليوم التالي
+const makeRangeFromStart = (start) => {
+  if (!HHMM.test(start)) return null;
+  const { time: end, dayDelta } = addMinutes(start, 120);
+  if (dayDelta !== 0) return null;
+  return `${start} - ${end}`;
+};
+const getStartFromRange = (range) => (range || "").split(" - ")[0] || "";
+const isValid2hRange = (range) => {
+  const [a, b] = (range || "").split(" - ");
+  if (!HHMM.test(a) || !HHMM.test(b)) return false;
+  const diff = toMinutes(b) - toMinutes(a);
+  return diff === 120;
+};
+
+/* =================== تحقق قبل الإرسال =================== */
 const validateSchedule = (schedule) => {
   if (!Array.isArray(schedule) || schedule.length === 0) {
     return "اختر على الأقل يوم تدريب وحدد وقته.";
   }
   for (const item of schedule) {
-    const d = `${item.day_ar || item.day_en}`;
-    if (!item.time_ar || !isValidTime(item.time_ar)) {
-      return `الوقت (AR) غير صالح لليوم ${d}. استخدم HH:MM مثل 17:30`;
+    const day = `${item.day_ar || item.day_en}`;
+    if (!isValid2hRange(item.time_ar)) {
+      return `وقت اليوم ${day} غير صالح. اختر وقت البداية فقط وسنحسب النهاية (+ساعتين).`;
     }
-    if (!item.time_en || !isValidTime(item.time_en)) {
-      return `الوقت (EN) غير صالح لليوم ${d}. استخدم HH:MM مثل 17:30`;
+    if (!isValid2hRange(item.time_en)) {
+      return `وقت (EN) لليوم ${day} غير صالح.`;
     }
   }
-  return null; // كل شي تمام
+  return null;
 };
 
-/** مكوّن اختيار الجدول الزمني: أيام + أوقات لكل يوم */
+/* =================== مكوّن اختيار الجدول الزمني =================== */
+/** يخزّن time_ar و time_en كـ "HH:MM - HH:MM" */
 function SchedulePicker({ value, onChange }) {
-  // value = [{day_en, day_ar, time_en, time_ar}]
   const selected = new Map(value.map((v) => [v.day_en, v]));
+  const [separateTimes, setSeparateTimes] = useState(false); // false = وقت موحّد
+  const [unifiedStart, setUnifiedStart] = useState("");
+  const [errors, setErrors] = useState({}); // { [day_en]: "msg" }
 
-  const toggleDay = (day) => {
-    const exists = selected.has(day.en);
-    let next;
-    if (exists) next = value.filter((v) => v.day_en !== day.en);
-    else
-      next = [
-        ...value,
-        { day_en: day.en, day_ar: day.ar, time_en: "", time_ar: "" },
-      ];
+  const applyUnifiedToAll = (start) => {
+    const range = makeRangeFromStart(start);
+    if (!range) return; // لو امتد لليوم التالي لا نطبّق
+    const next = value.map((v) => ({ ...v, time_ar: range, time_en: range }));
     onChange(next);
   };
 
-  const changeTime = (day_en, field, val) => {
+  const toggleDay = (day) => {
+    const exists = selected.has(day.en);
+    if (exists) {
+      onChange(value.filter((v) => v.day_en !== day.en));
+    } else {
+      const range =
+        !separateTimes && unifiedStart ? makeRangeFromStart(unifiedStart) : "";
+      onChange([
+        ...value,
+        {
+          day_en: day.en,
+          day_ar: day.ar,
+          time_en: range || "",
+          time_ar: range || "",
+        },
+      ]);
+    }
+  };
+
+  const changeStartForDay = (day_en, start) => {
+    const range = makeRangeFromStart(start);
+    setErrors((prev) => ({
+      ...prev,
+      [day_en]: range ? "" : "وقت البداية يجب أن يسمح بساعتين ضمن نفس اليوم",
+    }));
     onChange(
-      value.map((v) => (v.day_en === day_en ? { ...v, [field]: val } : v))
+      value.map((v) =>
+        v.day_en === day_en
+          ? { ...v, time_ar: range || "", time_en: range || "" }
+          : v
+      )
     );
+  };
+
+  const changeUnifiedStart = (start) => {
+    setUnifiedStart(start);
+    applyUnifiedToAll(start);
   };
 
   return (
@@ -77,45 +144,117 @@ function SchedulePicker({ value, onChange }) {
         ))}
       </div>
 
-      {value.length > 0 && (
+      {/* تشغيل/إيقاف أوقات مختلفة لكل يوم */}
+      <div className="form-check form-switch mb-3">
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id="separateTimesSwitch"
+          checked={separateTimes}
+          onChange={(e) => setSeparateTimes(e.target.checked)}
+        />
+        <label className="form-check-label" htmlFor="separateTimesSwitch">
+          أوقات مختلفة لكل يوم؟
+        </label>
+      </div>
+
+      {/* وقت موحّد لكل الأيام */}
+      {!separateTimes && (
+        <div className="row g-2 align-items-center mb-3">
+          <div className="col-auto">
+            <span className="badge bg-dark">وقت موحّد</span>
+          </div>
+          <div className="col-sm-4">
+            <label className="form-label">وقت البداية</label>
+            <input
+              type="time"
+              className="form-control"
+              value={unifiedStart}
+              onChange={(e) => changeUnifiedStart(e.target.value)}
+            />
+          </div>
+          <div className="col-sm-4">
+            <label className="form-label">وقت النهاية (+2 ساعة)</label>
+            <input
+              type="time"
+              className="form-control"
+              value={
+                unifiedStart
+                  ? addMinutes(unifiedStart, 120).dayDelta === 0
+                    ? addMinutes(unifiedStart, 120).time
+                    : ""
+                  : ""
+              }
+              readOnly
+              disabled
+              title="يُحسب تلقائيًا بعد ساعتين"
+            />
+          </div>
+          {unifiedStart && addMinutes(unifiedStart, 120).dayDelta !== 0 && (
+            <div className="col-12 text-danger small mt-1">
+              لا يمكن أن يمتد الوقت لليوم التالي. اختر وقت بداية أسبق.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* أوقات مختلفة لكل يوم */}
+      {separateTimes && value.length > 0 && (
         <div className="row g-3">
-          {value.map((item) => (
-            <div key={item.day_en} className="col-12">
-              <div className="row g-2 align-items-center">
-                <div className="col-md-3">
-                  <span className="badge bg-secondary w-100">
-                    {item.day_ar} / {item.day_en}
-                  </span>
-                </div>
-                <div className="col-md-4">
-                  <input
-                    type="time"
-                    className="form-control"
-                    value={item.time_ar}
-                    onChange={(e) =>
-                      changeTime(item.day_en, "time_ar", e.target.value)
-                    }
-                  />
-                </div>
-                <div className="col-md-4">
-                  <input
-                    type="time"
-                    className="form-control"
-                    value={item.time_en}
-                    onChange={(e) =>
-                      changeTime(item.day_en, "time_en", e.target.value)
-                    }
-                  />
+          {value.map((item) => {
+            const start = getStartFromRange(item.time_ar);
+            const endInfo = start
+              ? addMinutes(start, 120)
+              : { time: "", dayDelta: 0 };
+            const end = endInfo.dayDelta === 0 ? endInfo.time : "";
+            const error = errors[item.day_en];
+            return (
+              <div key={item.day_en} className="col-12">
+                <div className="row g-2 align-items-center">
+                  <div className="col-md-3">
+                    <span className="badge bg-secondary w-100">
+                      {item.day_ar} / {item.day_en}
+                    </span>
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label">وقت البداية</label>
+                    <input
+                      type="time"
+                      className={`form-control ${error ? "is-invalid" : ""}`}
+                      value={start}
+                      onChange={(e) =>
+                        changeStartForDay(item.day_en, e.target.value)
+                      }
+                    />
+                    {error && <div className="invalid-feedback">{error}</div>}
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label">وقت النهاية (+2 ساعة)</label>
+                    <input
+                      type="time"
+                      className="form-control"
+                      value={end}
+                      readOnly
+                      disabled
+                      title="يُحسب تلقائيًا بعد ساعتين"
+                    />
+                    {start && endInfo.dayDelta !== 0 && (
+                      <div className="text-danger small mt-1">
+                        لا يمكن أن يمتد الوقت لليوم التالي.
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
+/* =================== الصفحة الرئيسية =================== */
 export default function CoursesPage() {
   const [courses, setCourses] = useState([]);
   const [editCourse, setEditCourse] = useState(null);
@@ -131,6 +270,7 @@ export default function CoursesPage() {
   });
   const [isApplicantsLoading, setIsApplicantsLoading] = useState(false);
   const [applicantsError, setApplicantsError] = useState(null);
+
   const [newCourse, setNewCourse] = useState({
     title_ar: "",
     title_en: "",
@@ -155,14 +295,12 @@ export default function CoursesPage() {
   const addCloseBtnRef = useRef(null);
   const editCloseBtnRef = useRef(null);
 
-  // تنظيف احتياطي لو ظلّ الـ backdrop
   const cleanupBackdrop = () => {
     document.querySelectorAll(".modal-backdrop").forEach((b) => b.remove());
     document.body.classList.remove("modal-open");
     document.body.style.removeProperty("padding-right");
   };
 
-  // reset state بعد الإغلاق الحقيقي
   useEffect(() => {
     const addEl = addModalRef.current;
     const editEl = editModalRef.current;
@@ -179,6 +317,7 @@ export default function CoursesPage() {
         instructor_ar: "",
         instructor_en: "",
         formLink: "",
+        sheetLink: "",
         slug: "",
         image: "",
         description_ar: "",
@@ -189,26 +328,24 @@ export default function CoursesPage() {
 
     const onEditHidden = () => {
       setEditCourse(null);
+      setEditImageFile(null);
       cleanupBackdrop();
     };
 
     addEl?.addEventListener("hidden.bs.modal", onAddHidden);
     editEl?.addEventListener("hidden.bs.modal", onEditHidden);
-
     return () => {
       addEl?.removeEventListener("hidden.bs.modal", onAddHidden);
       editEl?.removeEventListener("hidden.bs.modal", onEditHidden);
     };
   }, []);
 
-  // جلب الكورسات
+  /* =================== جلب الكورسات =================== */
   const fetchCourses = async () => {
     try {
-      //const res = await fetch("http://localhost:5000/api/courses?lang=ar");
       const res = await fetch(
         "https://iss-group-dashboard-2.onrender.com/api/courses?lang=ar"
       );
-
       const data = await res.json();
       setCourses(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -220,12 +357,11 @@ export default function CoursesPage() {
       setTimeout(() => setAlertData(null), 2000);
     }
   };
-
   useEffect(() => {
     fetchCourses();
   }, []);
 
-  // تغييرات الحقول + توليد slug تلقائيًا
+  /* =================== تغييرات الحقول + slug =================== */
   const handleChange = (e) => {
     const { name, value } = e.target;
     let updated = { ...newCourse, [name]: value };
@@ -240,12 +376,10 @@ export default function CoursesPage() {
     setNewCourse(updated);
   };
 
-  // تحديث كورس
+  /* =================== تعديل كورس =================== */
   const handleUpdate = async (e, id) => {
     e.preventDefault();
-
-    // نفس فحوصات الجدول الزمني اللي عندك…
-    const msg = validateSchedule(editCourse.trainingSchedule || []);
+    const msg = validateSchedule(editCourse?.trainingSchedule || []);
     if (msg) {
       setAlertData({
         body: msg,
@@ -259,20 +393,16 @@ export default function CoursesPage() {
       let response;
 
       if (editImageFile) {
-        // نرسل multipart/form-data
         const form = new FormData();
-        // لو كائن، حوّله لحقول
         Object.entries(editCourse).forEach(([k, v]) => {
           if (k === "trainingSchedule") {
             form.append("trainingSchedule", JSON.stringify(v || []));
           } else if (k !== "image") {
-            // ما نبعث image القديمة كسترينغ، بنضيف الملف تحت نفس الاسم
             form.append(k, v ?? "");
           }
         });
-        form.append("image", editImageFile); // الصورة الجديدة
+        form.append("image", editImageFile);
 
-        //response = await fetch(`http://localhost:5000/api/courses/${id}`, {
         response = await fetch(
           `https://iss-group-dashboard-2.onrender.com/api/courses/${id}`,
           {
@@ -285,26 +415,25 @@ export default function CoursesPage() {
           ...editCourse,
           trainingSchedule: editCourse.trainingSchedule || [],
         };
-        response = await fetch(`http://localhost:5000/api/courses/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
+        response = await fetch(
+          `https://iss-group-dashboard-2.onrender.com/api/courses/${id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
+        );
       }
 
       const result = await response.json();
-
-      if (!response.ok) {
-        console.log("Update failed status:", response.status, result);
-        throw new Error(result.error || "فشل في التعديل");
-      }
+      if (!response.ok) throw new Error(result.error || "فشل في التعديل");
 
       setAlertData({
         body: "تم تعديل الكورس",
         className: "alert alert-success position-fixed top-0-0",
       });
       setTimeout(() => setAlertData(null), 2000);
-      setEditImageFile(null); // صفّي اختيار الصورة
+      setEditImageFile(null);
       editCloseBtnRef.current?.click();
       fetchCourses();
     } catch (err) {
@@ -317,7 +446,7 @@ export default function CoursesPage() {
     }
   };
 
-  // إضافة كورس
+  /* =================== إضافة كورس =================== */
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -347,6 +476,7 @@ export default function CoursesPage() {
         return;
       }
     }
+
     if (!newCourse.trainingSchedule.length) {
       setAlertData({
         body: "اختر على الاقل يوم تدريب وحدد وقته",
@@ -355,6 +485,7 @@ export default function CoursesPage() {
       setTimeout(() => setAlertData(null), 2000);
       return;
     }
+
     const msg = validateSchedule(newCourse.trainingSchedule);
     if (msg) {
       setAlertData({
@@ -386,7 +517,6 @@ export default function CoursesPage() {
         }
       );
       const data = await response.json();
-
       if (!response.ok) throw new Error(data.error || "فشل في الإضافة");
 
       setAlertData({
@@ -395,8 +525,6 @@ export default function CoursesPage() {
       });
       setTimeout(() => setAlertData(null), 2000);
       fetchCourses();
-
-      // أغلق المودال بالنقر على زر الإغلاق المخفي
       addCloseBtnRef.current?.click();
     } catch (err) {
       console.error(err);
@@ -408,18 +536,15 @@ export default function CoursesPage() {
     }
   };
 
-  // حذف كورس
+  /* =================== حذف كورس =================== */
   const handleDelete = async (id) => {
     if (!window.confirm("هل أنت متأكد أنك تريد حذف هذا الكورس؟")) return;
     try {
       const response = await fetch(
         `https://iss-group-dashboard-2.onrender.com/api/courses/${id}`,
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
       const result = await response.json();
-
       if (!response.ok) throw new Error(result.error || "فشل في الحذف");
 
       setAlertData({
@@ -437,6 +562,8 @@ export default function CoursesPage() {
       setTimeout(() => setAlertData(null), 2000);
     }
   };
+
+  /* =================== المتقدمون للشيت =================== */
   const fetchApplicantsFor = async (course) => {
     if (!course) return;
     setApplicants({ headers: [], rows: [], tabTitle: "" });
@@ -458,7 +585,6 @@ export default function CoursesPage() {
           Array.isArray(row) &&
           row.some((cell) => String(cell ?? "").trim() !== "")
       );
-
       setApplicants({
         headers: data.headers || [],
         rows,
@@ -472,18 +598,16 @@ export default function CoursesPage() {
       setIsApplicantsLoading(false);
     }
   };
-
   const openApplicants = async (course) => {
     setSelectedCourseForApplicants(course);
     await fetchApplicantsFor(course);
   };
-
   const refreshApplicants = async () => {
-    if (selectedCourseForApplicants) {
+    if (selectedCourseForApplicants)
       await fetchApplicantsFor(selectedCourseForApplicants);
-    }
   };
 
+  /* =================== JSX =================== */
   return (
     <ProtectedRoute allowed="courses">
       <div className="container py-5">
@@ -516,7 +640,7 @@ export default function CoursesPage() {
               <tr>
                 <th>العنوان</th>
                 <th>المستوى</th>
-                <th> المتقدمين</th>
+                <th>المتقدمين</th>
                 <th>الأيام</th>
                 <th>الأوقات</th>
                 <th>الرابط</th>
@@ -553,7 +677,7 @@ export default function CoursesPage() {
                     <td>
                       {course.trainingSchedule
                         ?.map((s) => s.time_ar)
-                        .join(" - ")}
+                        .join(" | ")}
                     </td>
                     <td>
                       <a
@@ -618,7 +742,6 @@ export default function CoursesPage() {
                   data-bs-dismiss="modal"
                   aria-label="Close"
                 ></button>
-                {/* زر إغلاق مخفي */}
                 <button
                   ref={addCloseBtnRef}
                   type="button"
@@ -771,7 +894,7 @@ export default function CoursesPage() {
                     />
                   </div>
 
-                  {/* رابط التسجيل */}
+                  {/* الروابط */}
                   <div className="col-md-12">
                     <label className="form-label">رابط التسجيل</label>
                     <input
@@ -855,7 +978,6 @@ export default function CoursesPage() {
                   data-bs-dismiss="modal"
                   aria-label="Close"
                 ></button>
-                {/* زر إغلاق مخفي */}
                 <button
                   ref={editCloseBtnRef}
                   type="button"
@@ -867,7 +989,7 @@ export default function CoursesPage() {
               <div className="modal-body">
                 {editCourse && (
                   <div className="container-fluid">
-                    {/* العنوان */}
+                    {/* العناوين */}
                     <div className="row g-3">
                       <div className="col-md-6">
                         <label className="form-label">العنوان (AR)</label>
@@ -1051,7 +1173,7 @@ export default function CoursesPage() {
                       </div>
                     </div>
 
-                    {/* رابط التسجيل */}
+                    {/* الروابط + الصورة */}
                     <div className="row g-3 mt-3">
                       <div className="col-md-12">
                         <label className="form-label">رابط التسجيل</label>
@@ -1069,6 +1191,7 @@ export default function CoursesPage() {
                         />
                       </div>
                     </div>
+
                     <div className="row g-3 mt-3">
                       <div className="col-md-12">
                         <label className="form-label">رابط Google Sheet</label>
@@ -1087,7 +1210,8 @@ export default function CoursesPage() {
                         />
                       </div>
                     </div>
-                    <div className="col-md-6">
+
+                    <div className="col-md-6 mt-3">
                       <label className="form-label">تغيير الصورة</label>
                       <input
                         type="file"
