@@ -13,7 +13,7 @@ export default function LoginPage() {
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      router.replace("/statistics"); // أو أي صفحة افتراضية بعد الدخول
+      router.replace("/statistics");
     }
   }, [router]);
 
