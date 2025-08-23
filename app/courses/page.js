@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useId } from "react";
 import ProtectedRoute from "../_components/ProtectedRoute";
 import Alerts from "../_components/Alerts";
 import "./courses.css";
@@ -103,6 +103,7 @@ const validateAndNormalizeSchedule = (schedule) => {
 
 /* =================== SchedulePicker =================== */
 function SchedulePicker({ value, onChange, onError }) {
+  const uid = useId(); // 👈 معرّف فريد لكل نسخة
   const selected = new Map(value.map((v) => [v.day_en, v]));
   const [separateTimes, setSeparateTimes] = useState(false); // false = وقت موحّد
   const [unifiedStart, setUnifiedStart] = useState("");
@@ -120,12 +121,14 @@ function SchedulePicker({ value, onChange, onError }) {
     if (exists) {
       onChange(value.filter((v) => v.day_en !== day.en));
     } else {
-      let range = "";
-      if (!separateTimes && unifiedStart) {
-        const auto = addMinutes(unifiedStart, 120).time;
-        range = `${unifiedStart} - ${auto}`;
-      }
-      onChange([...value, { day_en: day.en, day_ar: day.ar, time_en: range, time_ar: range }]);
+      const range =
+        !separateTimes && unifiedStart
+          ? `${unifiedStart} - ${addMinutes(unifiedStart, 120).time}`
+          : "";
+      onChange([
+        ...value,
+        { day_en: day.en, day_ar: day.ar, time_en: range, time_ar: range },
+      ]);
     }
   };
 
@@ -191,12 +194,22 @@ function SchedulePicker({ value, onChange, onError }) {
       {/* شارات الأيام */}
       <div className="mb-3">
         {WEEK_DAYS.map((day) => {
-          const id = `day-${day.en}`;
+          const id = `${uid}-day-${day.en}`; // 👈 فريد
           const checked = selected.has(day.en);
           return (
             <span key={day.en} className="me-2 mb-2 d-inline-block">
-              <input type="checkbox" className="btn-check" id={id} checked={checked} onChange={() => toggleDay(day)} autoComplete="off" />
-              <label className={`btn btn-sm ${checked ? "btn-primary" : "btn-outline-primary"} rounded-pill px-3`} htmlFor={id}>
+              <input
+                type="checkbox"
+                className="btn-check"
+                id={id}
+                checked={checked}
+                onChange={() => toggleDay(day)}
+                autoComplete="off"
+              />
+              <label
+                className={`btn btn-sm ${checked ? "btn-primary" : "btn-outline-primary"} rounded-pill px-3`}
+                htmlFor={id}
+              >
                 <i className="bi bi-check2-circle me-1"></i>{day.ar}
               </label>
             </span>
@@ -206,8 +219,16 @@ function SchedulePicker({ value, onChange, onError }) {
 
       {/* سويتش أوقات مختلفة */}
       <div className="form-check form-switch mb-3">
-        <input className="form-check-input" type="checkbox" id="separateTimesSwitch" checked={separateTimes} onChange={(e) => setSeparateTimes(e.target.checked)} />
-        <label className="form-check-label" htmlFor="separateTimesSwitch">أوقات مختلفة لكل يوم؟</label>
+        <input
+          className="form-check-input"
+          type="checkbox"
+          id={`${uid}-separateTimesSwitch`} // 👈 فريد
+          checked={separateTimes}
+          onChange={(e) => setSeparateTimes(e.target.checked)}
+        />
+        <label className="form-check-label" htmlFor={`${uid}-separateTimesSwitch`}>
+          أوقات مختلفة لكل يوم؟
+        </label>
       </div>
 
       {/* وقت موحّد */}
@@ -221,12 +242,24 @@ function SchedulePicker({ value, onChange, onError }) {
 
             <div className="row g-3 align-items-end">
               <div className="col-md-3">
-                <label className="form-label">وقت البداية</label>
-                <input type="time" className="form-control" value={unifiedStart} onChange={(e) => onUnifiedStartChange(e.target.value)} />
+                <label className="form-label" htmlFor={`${uid}-unifiedStart`}>وقت البداية</label>
+                <input
+                  id={`${uid}-unifiedStart`} // 👈 فريد
+                  type="time"
+                  className="form-control"
+                  value={unifiedStart}
+                  onChange={(e) => onUnifiedStartChange(e.target.value)}
+                />
               </div>
               <div className="col-md-3">
-                <label className="form-label">وقت النهاية</label>
-                <input type="time" className="form-control" value={unifiedEnd} onChange={(e) => onUnifiedEndChange(e.target.value)} />
+                <label className="form-label" htmlFor={`${uid}-unifiedEnd`}>وقت النهاية</label>
+                <input
+                  id={`${uid}-unifiedEnd`} // 👈 فريد
+                  type="time"
+                  className="form-control"
+                  value={unifiedEnd}
+                  onChange={(e) => onUnifiedEndChange(e.target.value)}
+                />
               </div>
               <div className="col-md-3 d-grid">
                 <button
@@ -267,6 +300,8 @@ function SchedulePicker({ value, onChange, onError }) {
           {value.map((item) => {
             const start = getStart24(item.time_ar);
             const end = getEnd24(item.time_ar);
+            const startId = `${uid}-start-${item.day_en}`;
+            const endId = `${uid}-end-${item.day_en}`;
             return (
               <div key={item.day_en} className="col-12">
                 <div className="card border-0 shadow-sm">
@@ -295,12 +330,24 @@ function SchedulePicker({ value, onChange, onError }) {
 
                     <div className="row g-3">
                       <div className="col-md-4">
-                        <label className="form-label">وقت البداية</label>
-                        <input type="time" className="form-control" value={start} onChange={(e) => changeStartForDay(item.day_en, e.target.value)} />
+                        <label className="form-label" htmlFor={startId}>وقت البداية</label>
+                        <input
+                          id={startId}
+                          type="time"
+                          className="form-control"
+                          value={start}
+                          onChange={(e) => changeStartForDay(item.day_en, e.target.value)}
+                        />
                       </div>
                       <div className="col-md-4">
-                        <label className="form-label">وقت النهاية</label>
-                        <input type="time" className="form-control" value={end} onChange={(e) => changeEndForDay(item.day_en, e.target.value)} />
+                        <label className="form-label" htmlFor={endId}>وقت النهاية</label>
+                        <input
+                          id={endId}
+                          type="time"
+                          className="form-control"
+                          value={end}
+                          onChange={(e) => changeEndForDay(item.day_en, e.target.value)}
+                        />
                       </div>
                       <div className="col-md-4 d-flex align-items-end">
                         <div className="text-muted small">المدى الحالي: <code>{item.time_ar || "—"}</code></div>
@@ -406,12 +453,14 @@ export default function CoursesPage() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    let updated = { ...newCourse, [name]: value };
-    if (name === "title_en") {
-      const slug = value.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-      updated.slug = slug;
-    }
-    setNewCourse(updated);
+    setNewCourse((prev) => {
+      const updated = { ...prev, [name]: value };
+      if (name === "title_en") {
+        const slug = value.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
+        updated.slug = slug;
+      }
+      return updated;
+    });
   };
 
   const handleUpdate = async (e, id) => {
@@ -541,7 +590,9 @@ export default function CoursesPage() {
     <ProtectedRoute allowed="courses">
       <div className="container py-5">
         <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-          <h2 className="fw-bold" style={{ color: "#1e293b" }}><i className="bi bi-journal-code me-2"></i>إدارة الكورسات</h2>
+          <h2 className="fw-bold" style={{ color: "#1e293b" }}>
+            <i className="bi bi-journal-code me-2"></i>إدارة الكورسات
+          </h2>
           {alertData && <Alerts body={alertData.body} className={alertData.className} />}
           <button className="btn btn-success" data-bs-toggle="modal" data-bs-target="#addCourseModal">
             <i className="bi bi-plus-circle me-1"></i> إضافة كورس
@@ -658,7 +709,7 @@ export default function CoursesPage() {
                   <div className="col-12">
                     <SchedulePicker
                       value={newCourse.trainingSchedule}
-                      onChange={(next) => setNewCourse({ ...newCourse, trainingSchedule: next })}
+                      onChange={(next) => setNewCourse((prev) => ({ ...prev, trainingSchedule: next }))}
                       onError={showError}
                     />
                   </div>
@@ -703,7 +754,7 @@ export default function CoursesPage() {
 
                   <div className="col-md-6">
                     <label className="form-label">تحميل صورة (اختياري)</label>
-                    <input type="file" className="form-control" name="image" onChange={(e) => setNewCourse({ ...newCourse, image: e.target.files[0] })} />
+                    <input type="file" className="form-control" name="image" onChange={(e) => setNewCourse((prev) => ({ ...prev, image: e.target.files[0] }))} />
                   </div>
                 </div>
               </div>
@@ -732,7 +783,7 @@ export default function CoursesPage() {
                     <div className="row g-3">
                       <div className="col-md-6">
                         <label className="form-label">العنوان (AR)</label>
-                        <input type="text" className="form-control" name="title_ar" value={editCourse.title_ar || ""} onChange={(e) => setEditCourse({ ...editCourse, title_ar: e.target.value })} />
+                        <input type="text" className="form-control" name="title_ar" value={editCourse.title_ar || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, title_ar: e.target.value }))} />
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Title (EN)</label>
@@ -741,7 +792,7 @@ export default function CoursesPage() {
                           onChange={(e) => {
                             const val = e.target.value;
                             const generatedSlug = val.toLowerCase().trim().replace(/[^\w\s-]/g, "").replace(/\s+/g, "-");
-                            setEditCourse({ ...editCourse, title_en: val, slug: generatedSlug });
+                            setEditCourse((prev) => ({ ...prev, title_en: val, slug: generatedSlug }));
                           }}
                         />
                       </div>
@@ -750,18 +801,18 @@ export default function CoursesPage() {
                     <div className="row g-3 mt-3">
                       <div className="col-md-6">
                         <label className="form-label">الوصف (AR)</label>
-                        <textarea className="form-control" name="description_ar" rows="2" value={editCourse.description_ar || ""} onChange={(e) => setEditCourse({ ...editCourse, description_ar: e.target.value })} />
+                        <textarea className="form-control" name="description_ar" rows="2" value={editCourse.description_ar || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, description_ar: e.target.value }))} />
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Description (EN)</label>
-                        <textarea className="form-control" name="description_en" rows="2" value={editCourse.description_en || ""} onChange={(e) => setEditCourse({ ...editCourse, description_en: e.target.value })} />
+                        <textarea className="form-control" name="description_en" rows="2" value={editCourse.description_en || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, description_en: e.target.value }))} />
                       </div>
                     </div>
 
                     <div className="row g-3 mt-3">
                       <div className="col-md-6">
                         <label className="form-label">المستوى (AR)</label>
-                        <select className="form-select" name="level_ar" value={editCourse.level_ar || ""} onChange={(e) => setEditCourse({ ...editCourse, level_ar: e.target.value })}>
+                        <select className="form-select" name="level_ar" value={editCourse.level_ar || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, level_ar: e.target.value }))}>
                           <option value="أساسي">أساسي</option>
                           <option value="مبتدئ">مبتدئ</option>
                           <option value="متقدم">متقدم</option>
@@ -769,7 +820,7 @@ export default function CoursesPage() {
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Level (EN)</label>
-                        <select className="form-select" name="level_en" value={editCourse.level_en || ""} onChange={(e) => setEditCourse({ ...editCourse, level_en: e.target.value })}>
+                        <select className="form-select" name="level_en" value={editCourse.level_en || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, level_en: e.target.value }))}>
                           <option value="Basic">Basic</option>
                           <option value="Beginner">Beginner</option>
                           <option value="Advanced">Advanced</option>
@@ -781,7 +832,7 @@ export default function CoursesPage() {
                       <div className="col-12">
                         <SchedulePicker
                           value={editCourse.trainingSchedule || []}
-                          onChange={(next) => setEditCourse({ ...editCourse, trainingSchedule: next })}
+                          onChange={(next) => setEditCourse((prev) => ({ ...prev, trainingSchedule: next }))}
                           onError={showError}
                         />
                       </div>
@@ -790,7 +841,7 @@ export default function CoursesPage() {
                     <div className="row g-3 mt-3">
                       <div className="col-md-6">
                         <label className="form-label">ساعات التدريب (AR)</label>
-                        <select className="form-select" name="trainingHours_ar" value={editCourse.trainingHours_ar || ""} onChange={(e) => setEditCourse({ ...editCourse, trainingHours_ar: e.target.value })}>
+                        <select className="form-select" name="trainingHours_ar" value={editCourse.trainingHours_ar || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, trainingHours_ar: e.target.value }))}>
                           <option value="20 ساعة تدريبية">20 ساعة تدريبية</option>
                           <option value="30 ساعة تدريبية">30 ساعة تدريبية</option>
                           <option value="40 ساعة تدريبية">40 ساعة تدريبية</option>
@@ -798,7 +849,7 @@ export default function CoursesPage() {
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Training Hours (EN)</label>
-                        <select className="form-select" name="trainingHours_en" value={editCourse.trainingHours_en || ""} onChange={(e) => setEditCourse({ ...editCourse, trainingHours_en: e.target.value })}>
+                        <select className="form-select" name="trainingHours_en" value={editCourse.trainingHours_en || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, trainingHours_en: e.target.value }))}>
                           <option value="20 training hours">20 training hours</option>
                           <option value="30 training hours">30 training hours</option>
                           <option value="40 training hours">40 training hours</option>
@@ -809,14 +860,14 @@ export default function CoursesPage() {
                     <div className="row g-3 mt-3">
                       <div className="col-md-12">
                         <label className="form-label">رابط التسجيل (اختياري)</label>
-                        <input type="text" className="form-control" name="formLink" value={editCourse.formLink || ""} onChange={(e) => setEditCourse({ ...editCourse, formLink: e.target.value })} />
+                        <input type="text" className="form-control" name="formLink" value={editCourse.formLink || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, formLink: e.target.value }))} />
                       </div>
                     </div>
 
                     <div className="row g-3 mt-3">
                       <div className="col-md-12">
                         <label className="form-label">رابط Google Sheet (اختياري)</label>
-                        <input type="text" className="form-control" name="sheetLink" value={editCourse.sheetLink || ""} onChange={(e) => setEditCourse({ ...editCourse, sheetLink: e.target.value })} placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" />
+                        <input type="text" className="form-control" name="sheetLink" value={editCourse.sheetLink || ""} onChange={(e) => setEditCourse((prev) => ({ ...prev, sheetLink: e.target.value }))} placeholder="https://docs.google.com/spreadsheets/d/.../edit#gid=0" />
                       </div>
                     </div>
 
